@@ -11,10 +11,9 @@ st.set_page_config(
     page_icon="💼"
 )
 
-# 💡 核心改动：固定后端网址，不再让用户在页面手动输入
-# 本地测试时保持 "http://127.0.0.1:8000"
-# 未来 Render 部署后端后，直接把这里的地址换成 Render 的公网 URL 即可
-BACKEND_URL = "http://127.0.0.1:8000"
+# 💡 ✅ 修改位置 1：把这里的地址替换为你用 Web Service 部署好后端后拿到的真实 Render 公网 URL
+# ⚠️ 注意：末尾不要加斜杠 /
+BACKEND_URL = "https://burnout-backend-api.onrender.com"
 
 # ==========================================
 # 🎨 UI HEADER & BRANDING
@@ -25,17 +24,15 @@ st.markdown("""
     This system leverages advanced **Random Forest Regressors** hosted on a secure backend API 
     to analyze employee workplace metrics and quantify psychological burnout risks.
 """)
-st.divider() # 高级精细分割线
+st.divider() 
 
 # ==========================================
 # 📋 INTERACTIVE INPUT FORM (Tabbed & Organized)
 # ==========================================
 st.subheader("📋 Employee Profile & Metrics")
 
-# 使用 Container 容器包裹输入区域，形成类似卡片（Card）的内凹美观视觉感
 with st.container(border=True):
     
-    # 使用 Tabs 标签页把基本信息和工作压力指标分开，让界面看起来非常专业、干净
     tab1, tab2 = st.tabs(["👤 Demographic & Company Info", "📊 Workplace & Psychological Metrics"])
     
     with tab1:
@@ -49,7 +46,6 @@ with st.container(border=True):
             joining_month = st.slider("Joining Month", 1, 12, 6)
 
     with tab2:
-        # 使用滑块美化，加上明确的说明，比单调的框看起来更具交互感
         designation = st.slider("Designation Level (0.0 = Entry, 5.0 = Executive)", 0.0, 5.0, 2.0, 0.5)
         resource = st.slider("Resource Allocation (1.0 = Low, 10.0 = Overloaded)", 1.0, 10.0, 4.0, 1.0)
         fatigue = st.slider("Mental Fatigue Score (0.0 = Energetic, 10.0 = Exhausted)", 0.0, 10.0, 5.0, 0.1)
@@ -57,12 +53,11 @@ with st.container(border=True):
 # Feature Engineering: Tenure calculation aligned with training pipeline
 days_in_company = (pd.to_datetime('2016-12-31') - pd.to_datetime(f"{int(joining_year)}-{int(joining_month):02d}-01")).days
 
-st.write("") # 留空增加视觉呼吸感
+st.write("") 
 
 # ==========================================
 # 🚀 API REQUEST & RISK ASSESSMENT
 # ==========================================
-# 使用 use_container_width 让按钮拉满整行，更符合现代 Web 扁平化设计大按钮趋势
 if st.button("🚀 Run Remote Risk Assessment", use_container_width=True):
     
     payload = {
@@ -79,7 +74,8 @@ if st.button("🚀 Run Remote Risk Assessment", use_container_width=True):
     
     with st.spinner("Establishing secure connection to AI model..."):
         try:
-            response = requests.post(f"{BACKEND_URL.strip('/')}/predict", json=payload)
+            # 💡 ✅ 修改位置 2：确保网络请求指向后端的 /predict 路由路径（就像老师代码中的 /predict 一样）
+            response = requests.post(f"{BACKEND_URL}/predict", json=payload)
             
             if response.status_code == 200:
                 result = response.json()
@@ -89,12 +85,9 @@ if st.button("🚀 Run Remote Risk Assessment", use_container_width=True):
                 st.divider()
                 st.subheader("📊 Quantitative Risk Assessment Result")
                 
-                # 结果大卡片区域
                 with st.container(border=True):
-                    # 大字号核心指标展示
                     st.metric(label="Predicted Employee Burnout Rate", value=f"{burn_rate_pct:.2f}%")
                     
-                    # 针对不同等级风险，通过漂亮的警告框 + 精心设计的全英文业务建议，提升作业的 Business Sense
                     if prediction < 0.3:
                         st.success("""
                             **🟢 LOW RISK STATUS**
@@ -117,4 +110,4 @@ if st.button("🚀 Run Remote Risk Assessment", use_container_width=True):
                 st.error(f"❌ Backend Server Error: Received status code {response.status_code}")
                 
         except Exception as e:
-            st.error(f"❌ Connection Failed: Unable to reach the API server. Please verify if your FastAPI backend is running locally at {BACKEND_URL}.")
+            st.error(f"❌ Connection Failed: Unable to reach the API server. Please verify if your FastAPI backend is running properly at {BACKEND_URL}.")
