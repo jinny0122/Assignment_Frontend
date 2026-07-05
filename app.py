@@ -11,9 +11,9 @@ st.set_page_config(
     page_icon="💼"
 )
 
-# 💡 ✅ 修改位置 1：把这里的地址替换为你用 Web Service 部署好后端后拿到的真实 Render 公网 URL
-# ⚠️ 注意：末尾不要加斜杠 /
+# 🔌 两端服务地址清晰解耦
 BACKEND_URL = "https://burnout-backend-api.onrender.com"
+N8N_WEBHOOK_URL = "https://jinnyy0122.app.n8n.cloud/webhook/burnout-triage"
 
 # ==========================================
 # 🎨 UI HEADER & BRANDING
@@ -21,18 +21,17 @@ BACKEND_URL = "https://burnout-backend-api.onrender.com"
 st.title("💼 Employee Burnout Analytics Dashboard")
 st.markdown("""
     Welcome to the Enterprise Burnout Prediction Platform. 
-    This system leverages advanced **Random Forest Regressors** hosted on a secure backend API 
-    to analyze employee workplace metrics and quantify psychological burnout risks.
+    This system leverages a multi-layer **Agentic Workflow (n8n)** connected to a secure Random Forest 
+    FastAPI backend to deliver quantitative calculations and qualitative AI psychological diagnosis.
 """)
 st.divider() 
 
 # ==========================================
-# 📋 INTERACTIVE INPUT FORM (Tabbed & Organized)
+# 📋 INTERACTIVE INPUT FORM
 # ==========================================
 st.subheader("📋 Employee Profile & Metrics")
 
 with st.container(border=True):
-    
     tab1, tab2 = st.tabs(["👤 Demographic & Company Info", "📊 Workplace & Psychological Metrics"])
     
     with tab1:
@@ -50,17 +49,16 @@ with st.container(border=True):
         resource = st.slider("Resource Allocation (1.0 = Low, 10.0 = Overloaded)", 1.0, 10.0, 4.0, 1.0)
         fatigue = st.slider("Mental Fatigue Score (0.0 = Energetic, 10.0 = Exhausted)", 0.0, 10.0, 5.0, 0.1)
 
-# Feature Engineering: Tenure calculation aligned with training pipeline
 days_in_company = (pd.to_datetime('2016-12-31') - pd.to_datetime(f"{int(joining_year)}-{int(joining_month):02d}-01")).days
-
 st.write("") 
 
 # ==========================================
-# 🚀 API REQUEST & RISK ASSESSMENT
+# 🚀 TWO-STAGE INTELLIGENCE ROUTING
 # ==========================================
-if st.button("🚀 Run Remote Risk Assessment", use_container_width=True):
+if st.button("🚀 Run Agentic Risk Assessment", use_container_width=True):
     
-    payload = {
+    # 1. 严格对齐 FastAPI 的 7 个原生标准数字字段，直接请求后端进行机器学习预测
+    fastapi_payload = {
         "Gender": gender,
         "Company_Type": company_type,
         "WFH_Setup_Available": wfh,
@@ -72,42 +70,75 @@ if st.button("🚀 Run Remote Risk Assessment", use_container_width=True):
         "Days_In_Company": int(days_in_company)
     }
     
-    with st.spinner("Establishing secure connection to AI model..."):
+    with st.spinner("⏳ Stage 1: Querying Random Forest Model via FastAPI Backend..."):
         try:
-            # 💡 ✅ 修改位置 2：确保网络请求指向后端的 /predict 路由路径（就像老师代码中的 /predict 一样）
-            response = requests.post(f"{BACKEND_URL}/predict", json=payload)
+            fastapi_res = requests.post(f"{BACKEND_URL}/predict", json=fastapi_payload, timeout=20)
+            if fastapi_res.status_code == 200:
+                burn_rate = fastapi_res.json()["burn_rate"]
+                burn_rate_pct = burn_rate * 100
+                st.toast("⚡ FastAPI quantitative calculation complete!", icon="🔢")
+            else:
+                st.error(f"❌ Backend Error: Code {fastapi_res.status_code}. Raw response: {fastapi_res.text}")
+                st.stop()
+        except Exception as e:
+            st.error(f"❌ Connection to FastAPI failed: {str(e)}")
+            st.stop()
             
-            if response.status_code == 200:
-                result = response.json()
-                prediction = result["burn_rate"]
-                burn_rate_pct = prediction * 100
+    # 2. 将计算好的百分比结果和所有上下文打包，一次性发送给 n8n 触发 AI Agent 做心理学诊断
+    with st.spinner("🧙‍♂️ Stage 2: Triggering n8n Workflow & LLM AI Agent..."):
+        try:
+            n8n_payload = {
+                "burn_rate": float(burn_rate),
+                "Gender": gender,
+                "Company_Type": company_type,
+                "WFH_Setup_Available": wfh,
+                "Designation": float(designation),
+                "Resource_Allocation": float(resource),
+                "Mental_Fatigue_Score": float(fatigue),
+                "Joining_Year": int(joining_year),
+                "Joining_Month": int(joining_month),
+                "Days_In_Company": int(days_in_company)
+            }
+            
+            n8n_res = requests.post(N8N_WEBHOOK_URL, json=n8n_payload, timeout=60)
+            
+            if n8n_res.status_code == 200:
+                result = n8n_res.json()
                 
+                # 提取 AI Agent 吐回的诊断、干预和慰问信
+                risk_tier = result.get("risk_tier", "UNKNOWN RISK TIER")
+                psych_analysis = result.get("psychological_analysis", "No analysis provided.")
+                mitigation = result.get("actionable_mitigation", "No recommendations provided.")
+                comfort_email = result.get("draft_comfort_email", "No email drafted.")
+                
+                # ------------------------------------------
+                # 🎨 RENDERING WORKSPACE DASHBOARD
+                # ------------------------------------------
                 st.divider()
-                st.subheader("📊 Quantitative Risk Assessment Result")
+                st.subheader("📊 Integrated Intelligence Dashboard")
+                
+                metric_col, alert_col = st.columns(2)
+                with metric_col:
+                    st.metric(label="Predicted Employee Burnout Rate", value=f"{burn_rate_pct:.2f}%")
+                with alert_col:
+                    if "HIGH" in risk_tier.upper():
+                        st.error(f"🚨 Triage Action Tier: {risk_tier}")
+                    elif "MEDIUM" in risk_tier.upper():
+                        st.warning(f"⚠️ Triage Action Tier: {risk_tier}")
+                    else:
+                        st.success(f"✅ Triage Action Tier: {risk_tier}")
                 
                 with st.container(border=True):
-                    st.metric(label="Predicted Employee Burnout Rate", value=f"{burn_rate_pct:.2f}%")
-                    
-                    if prediction < 0.3:
-                        st.success("""
-                            **🟢 LOW RISK STATUS**
-                            - **Assessment:** The employee maintains excellent operational metrics. Work pressure is well-balanced within healthy boundaries.
-                            - **Action:** No immediate action required. Maintain current work-life balance initiatives.
-                        """)
-                    elif prediction < 0.7:
-                        st.warning("""
-                            **🟡 MEDIUM RISK WARNING**
-                            - **Assessment:** The employee is showing early signs of psychological fatigue and professional burnout.
-                            - **Action:** Management intervention is recommended. Consider optimizing resource allocation or conducting a 1-on-1 check-in.
-                        """)
-                    else:
-                        st.error("""
-                            **🔴 HIGH RISK CRITICAL ALERT**
-                            - **Assessment:** The employee has reached an extreme state of professional burnout and severe mental exhaustion.
-                            - **Action:** Immediate organizational intervention required. Highly recommend mandatory leave, mental wellness support, or critical workload reductions to prevent attrition.
-                        """)
-            else:
-                st.error(f"❌ Backend Server Error: Received status code {response.status_code}")
+                    st.markdown("### 📋 AI Expert Psychological Diagnosis")
+                    st.write(psych_analysis)
+                    st.markdown("### 🛠️ Strategic Management Intervention Steps")
+                    st.write(mitigation)
                 
+                st.write("")
+                st.subheader("✉️ Automated HR Support Email Draft")
+                st.text_area(label="Copy template:", value=comfort_email, height=240)
+                st.toast("🎯 End-to-End Analysis Completed Successfully!", icon="🚀")
+            else:
+                st.error(f"❌ n8n Gateway Error: Received status code {n8n_res.status_code}. Response: {n8n_res.text}")
         except Exception as e:
-            st.error(f"❌ Connection Failed: Unable to reach the API server. Please verify if your FastAPI backend is running properly at {BACKEND_URL}.")
+            st.error(f"❌ Connection to n8n failed: {str(e)}")
