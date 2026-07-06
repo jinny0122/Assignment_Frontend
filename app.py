@@ -11,7 +11,7 @@ st.set_page_config(
     page_icon="💼"
 )
 
-# 🔌 两端服务地址清晰解耦
+
 BACKEND_URL = "https://burnout-backend-api.onrender.com"
 N8N_WEBHOOK_URL = "https://jinnyy0122.app.n8n.cloud/webhook/burnout-triage"
 
@@ -57,7 +57,7 @@ st.write("")
 # ==========================================
 if st.button("🚀 Run Agentic Risk Assessment", use_container_width=True):
     
-    # 1. 严格对齐 FastAPI 的 7 个原生标准数字字段，直接请求后端进行机器学习预测
+
     fastapi_payload = {
         "Gender": gender,
         "Company_Type": company_type,
@@ -84,7 +84,6 @@ if st.button("🚀 Run Agentic Risk Assessment", use_container_width=True):
             st.error(f"❌ Connection to FastAPI failed: {str(e)}")
             st.stop()
             
-    # 2. 将计算好的百分比结果和所有上下文打包，一次性发送给 n8n 触发 AI Agent 做心理学诊断
     with st.spinner("🧙‍♂️ Stage 2: Triggering n8n Workflow & LLM AI Agent..."):
         try:
             n8n_payload = {
@@ -105,7 +104,6 @@ if st.button("🚀 Run Agentic Risk Assessment", use_container_width=True):
             if n8n_res.status_code == 200:
                 result = n8n_res.json()
                 
-                # 提取 AI Agent 吐回的诊断、干预和慰问信
                 risk_tier = result.get("risk_tier", "UNKNOWN RISK TIER")
                 psych_analysis = result.get("psychological_analysis", "No analysis provided.")
                 mitigation = result.get("actionable_mitigation", "No recommendations provided.")
